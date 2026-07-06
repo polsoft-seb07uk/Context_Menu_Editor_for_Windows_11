@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshot.png" alt="Context Menu Editor screenshot" width="720">
+  <img src="screenshot.png" alt="Context Menu Editor screenshot" width="720">
 </p>
 
 <h1 align="center">Context Menu Editor</h1>
