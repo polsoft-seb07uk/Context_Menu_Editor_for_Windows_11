@@ -153,6 +153,8 @@ TRANSLATIONS = {
         "cat_drives": "Drives",
         "cat_all_objects": "All objects",
         "cat_all_objects_ext": "All objects - extensions",
+        "copy_name": "Copy name",
+        "copied_status": "Copied: {name}",
     },
     "pl": {
         "title": "Edytor Menu Kontekstowego - polsoft.ITS™ Group",
@@ -193,6 +195,8 @@ TRANSLATIONS = {
         "cat_drives": "Dyski",
         "cat_all_objects": "Wszystkie obiekty",
         "cat_all_objects_ext": "Wszystkie obiekty - rozszerzenia",
+        "copy_name": "Kopiuj nazwę",
+        "copied_status": "Skopiowano: {name}",
     },
 }
 
@@ -406,6 +410,28 @@ class ContextMenuEditor(tk.Tk):
     def t(self, key, **kwargs):
         return tr(self.lang, key, **kwargs)
 
+    def _build_tree_context_menu(self):
+        """Buduje (lub przebudowuje po zmianie języka) menu kontekstowe PPM listy."""
+        self.tree_menu.delete(0, "end")
+        self.tree_menu.add_command(label=self.t("refresh"), command=self.refresh)
+        self.tree_menu.add_separator()
+        self.tree_menu.add_command(label=self.t("enable"), command=self.enable_selected)
+        self.tree_menu.add_command(label=self.t("disable"), command=self.disable_selected)
+        self.tree_menu.add_separator()
+        self.tree_menu.add_command(label=self.t("copy_name"), command=self.copy_selected_name)
+        self.tree_menu.add_separator()
+        self.tree_menu.add_command(label=self.t("delete"), command=self.delete_selected)
+
+    def copy_selected_name(self):
+        sel = self._selected_items()
+        if not sel:
+            messagebox.showinfo(self.t("info_title"), self.t("select_at_least_one"))
+            return
+        text = "\n".join(i["display"] for i in sel)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.status_bar.config(text=self.t("copied_status", name=sel[0]["display"] if len(sel) == 1 else f"{len(sel)} items"))
+
     def toggle_language(self):
         self.lang = "pl" if self.lang == "en" else "en"
         save_settings({"language": self.lang})
@@ -430,6 +456,8 @@ class ContextMenuEditor(tk.Tk):
         self.tree.heading("category", text=self.t("col_category"))
 
         self.lang_btn.config(text=self._lang_btn_text())
+
+        self._build_tree_context_menu()
 
         self.refresh()
 
@@ -499,16 +527,77 @@ class ContextMenuEditor(tk.Tk):
             self.btn_adm.pack(side="right")
             self._style_action_button(self.btn_adm)
 
+        # Kontener na listę + paski przewijania (pionowy i poziomy)
+        self.tree_frame = ttk.Frame(self)
+        self.tree_frame.pack(fill="both", expand=True, padx=8, pady=8)
+        self.tree_frame.rowconfigure(0, weight=1)
+        self.tree_frame.columnconfigure(0, weight=1)
+
         cols = ("status", "name", "category")
-        self.tree = ttk.Treeview(self, columns=cols, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(self.tree_frame, columns=cols, show="headings", selectmode="extended")
         self.tree.heading("status", text=self.t("col_status"))
         self.tree.heading("name", text=self.t("col_name"))
         self.tree.heading("category", text=self.t("col_category"))
         self.tree.column("status", width=80, anchor="center")
         self.tree.column("name", width=440)
         self.tree.column("category", width=240)
-        self.tree.pack(fill="both", expand=True, padx=8, pady=8)
+
+        # Widoczny pionowy pasek przewijania
+        self.tree_vsb = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
+        # Widoczny poziomy pasek przewijania (przydatny przy długich nazwach/ścieżkach)
+        self.tree_hsb = ttk.Scrollbar(self.tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=self.tree_vsb.set, xscrollcommand=self.tree_hsb.set)
+
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        self.tree_vsb.grid(row=0, column=1, sticky="ns")
+        self.tree_hsb.grid(row=1, column=0, sticky="ew")
+
         self.tree.bind("<Double-1>", lambda e: self.toggle_selected())
+
+        # Przewijanie kółkiem myszy (Windows: <MouseWheel>; Linux: <Button-4>/<Button-5>)
+        def _on_mousewheel(event):
+            self.tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _on_mousewheel_linux(event):
+            self.tree.yview_scroll(-1 if event.num == 4 else 1, "units")
+
+        self.tree.bind("<MouseWheel>", _on_mousewheel)
+        self.tree.bind("<Button-4>", _on_mousewheel_linux)
+        self.tree.bind("<Button-5>", _on_mousewheel_linux)
+        # Shift + kółko myszy = przewijanie poziome
+        self.tree.bind("<Shift-MouseWheel>", lambda e: self.tree.xview_scroll(int(-1 * (e.delta / 120)), "units"))
+
+        # Pełna obsługa przewijania klawiaturą: Home/End/PageUp/PageDown/strzałki
+        self.tree.bind("<Home>", lambda e: (self.tree.yview_moveto(0), "break"))
+        self.tree.bind("<End>", lambda e: (self.tree.yview_moveto(1), "break"))
+        self.tree.bind("<Prior>", lambda e: self.tree.yview_scroll(-1, "pages"))  # Page Up
+        self.tree.bind("<Next>", lambda e: self.tree.yview_scroll(1, "pages"))    # Page Down
+
+        # ---------------------------------------------------------------
+        # Menu kontekstowe (prawy przycisk myszy) na liście
+        # ---------------------------------------------------------------
+        self.tree_menu = tk.Menu(self.tree, tearoff=0)
+        self._build_tree_context_menu()
+
+        def _show_tree_menu(event):
+            row_id = self.tree.identify_row(event.y)
+            if row_id:
+                # Jeśli kliknięty wiersz nie jest zaznaczony, zaznacz tylko jego
+                if row_id not in self.tree.selection():
+                    self.tree.selection_set(row_id)
+                self.tree.focus(row_id)
+            has_sel = bool(self.tree.selection())
+            state = "normal" if has_sel else "disabled"
+            # Indeksy: 0=Refresh, 1=sep, 2=Enable, 3=Disable, 4=sep, 5=Copy name, 6=sep, 7=Delete
+            for idx in (2, 3, 5, 7):
+                self.tree_menu.entryconfig(idx, state=state)
+            try:
+                self.tree_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.tree_menu.grab_release()
+
+        self.tree.bind("<Button-3>", _show_tree_menu)     # PPM - Windows/Linux
+        self.tree.bind("<Control-Button-1>", _show_tree_menu)  # macOS-style fallback
 
         self.status_frame = ttk.Frame(self)
         self.status_frame.pack(fill="x", side="bottom")
@@ -584,6 +673,20 @@ class ContextMenuEditor(tk.Tk):
         self.style.map("Treeview", 
                        background=[("selected", select_bg)], 
                        foreground=[("selected", select_fg)])
+
+        # Stylowanie paska przewijania zgodnie z aktywnym motywem
+        self.style.configure("Vertical.TScrollbar",
+                             background=panel_bg,
+                             troughcolor=tree_bg,
+                             bordercolor=tree_bg,
+                             arrowcolor=fg_color,
+                             relief="flat")
+        self.style.configure("Horizontal.TScrollbar",
+                             background=panel_bg,
+                             troughcolor=tree_bg,
+                             bordercolor=tree_bg,
+                             arrowcolor=fg_color,
+                             relief="flat")
         
         self.style.configure("Treeview.Heading", 
                              background=panel_bg, 

@@ -44,6 +44,8 @@ Windows accumulates context menu entries from installed software over time, and 
 ## Features
 
 - 🖱️ **Real context menu entries** — files, folders, folder background (empty space), drives, and all objects, including their extension-based variants
+- 📜 **Fully scrollable list** — visible vertical & horizontal scrollbars, mouse-wheel support (Shift + wheel for horizontal), and keyboard navigation (Home / End / Page Up / Page Down)
+- 🖱️ **Right-click context menu** on the list itself — Refresh, Enable, Disable, Copy name, Delete, right where you're looking
 - ✅ **Enable / disable** entries without deleting them — fully reversible
 - 🗑️ **Permanent deletion** of unwanted entries, with a confirmation prompt to prevent mistakes
 - 🌗 **Light and dark theme**, matching the native Windows 11 look
@@ -77,7 +79,7 @@ No installation, no dependencies, no admin rights required just to launch it (ad
 2. Run it — double-click, no setup needed.
 3. Click **Refresh** to scan the current context menu entries.
 4. Select one or more entries in the list.
-5. Use **Enable**, **Disable**, or **Delete** as needed.
+5. Use **Enable**, **Disable**, or **Delete** as needed — or **right-click** any row for a quick context menu with the same actions plus **Copy name**.
 6. For system-wide (`HKLM`) entries that require elevated rights, click **Run as administrator** — the app will relaunch itself with elevation.
 7. Switch **Theme** (light/dark) or **language** (EN/PL) at any time from the bottom bar.
 
