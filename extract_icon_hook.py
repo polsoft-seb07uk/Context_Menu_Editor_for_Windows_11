@@ -5,33 +5,27 @@ Runtime hook PyInstaller (uruchamiany PRZED context_menu_editor.py).
 Aplikacja wczytuje ikonę okna przez tkinter (self.iconbitmap("ico.ico")),
 sprawdzając WZGLĘDNĄ ścieżkę do pliku "ico.ico" w bieżącym katalogu roboczym.
 
-W trybie --onefile plik ico.ico jest owinięty do wnętrza .exe i przy starcie
-rozpakowywany do tymczasowego katalogu sys._MEIPASS, a NIE do katalogu,
-w którym leży sam plik .exe. Ten hook kopiuje ikonę z _MEIPASS obok pliku
-.exe (tylko przy pierwszym uruchomieniu), dzięki czemu:
-  - plik .exe pozostaje pojedynczym plikiem "all-in-one" do rozesłania,
-  - a po pierwszym uruchomieniu ikona w oknie/"O programie" również działa.
+Plik ico.ico jest OSADZONY WEWNĄTRZ pojedynczego pliku .exe (parametr
+icon='ico.ico' w spec osadza go jako zasób Win32 dla samego EXE, a wpis
+w datas=[('ico.ico', '.')] osadza jego kopię wewnątrz archiwum onefile).
+Bootloader PyInstallera onefile rozpakowuje ją wyłącznie do WEWNĘTRZNEGO,
+tymczasowego katalogu roboczego (sys._MEIPASS) - NIGDY do folderu, w którym
+leży sam plik .exe.
+
+Ten hook jedynie przełącza katalog roboczy procesu na sys._MEIPASS, dzięki
+czemu względna ścieżka "ico.ico" w kodzie aplikacji od razu ją znajduje.
+Nie jest tworzony, kopiowany ani zostawiany ŻADEN plik obok ContextMenuEditor.exe
+- dystrybuowany jest wyłącznie jeden, samodzielny plik .exe (all-in-one).
 
 Plik jest bezpieczny w wykonaniu - żaden wyjątek nie przerywa startu appki.
 """
 import os
 import sys
-import shutil
 
 try:
     if getattr(sys, "frozen", False):
         meipass = getattr(sys, "_MEIPASS", None)
-        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-        if meipass:
-            src = os.path.join(meipass, "ico.ico")
-            dst = os.path.join(exe_dir, "ico.ico")
-            if os.path.exists(src) and not os.path.exists(dst):
-                shutil.copy2(src, dst)
-        # Upewnij się, że katalogiem roboczym jest katalog pliku .exe,
-        # zgodnie z tym, czego oczekuje kod aplikacji (ścieżki względne).
-        try:
-            os.chdir(exe_dir)
-        except Exception:
-            pass
+        if meipass and os.path.exists(os.path.join(meipass, "ico.ico")):
+            os.chdir(meipass)
 except Exception:
     pass
